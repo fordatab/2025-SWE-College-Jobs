@@ -1,5 +1,32 @@
 import re
 
+def extract_tables(md_content):
+    lines = md_content.splitlines()
+    tables = {}
+    current_section = None
+    table_data = []
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('### '):
+            if current_section and table_data:
+                tables[current_section] = table_data
+            current_section = stripped[4:].strip()
+            in_table = False
+            table_data = []
+        if stripped.startswith('|'):
+            row = [c.strip() for c in line.split('|')[1:-1]]
+            if not in_table:
+                in_table = True
+                table_data.append(row)  # headers
+            else:
+                table_data.append(row)
+        elif in_table and not stripped:
+            in_table = False
+    if current_section and table_data:
+        tables[current_section] = table_data
+    return tables
+
 def extract_sections(md_content):
     lines = md_content.splitlines()
     sections = {}
@@ -41,6 +68,7 @@ except FileNotFoundError:
 
 tracking_map = {}
 if tracking_content:
+    # First, try parsing as list format
     lines = tracking_content.splitlines()
     for line in lines:
         match = re.match(r'^\s*-\s*\[([ x])\]\s*(.*)', line)
@@ -50,8 +78,24 @@ if tracking_content:
             url_match = re.search(r'\[\w*\]\((https?://[^)]+)\)', rest)
             if url_match:
                 url = url_match.group(1)
-                status = f' [{"x" if status_char == "x" else " "}] '
+                status = f'- [{"x" if status_char == "x" else " "}]'
                 tracking_map[url] = status
+
+# If no statuses found from list, fallback to parsing as old table format
+if not tracking_map:
+    tracking_tables = extract_tables(tracking_content)
+    sections = ['FAANG+', 'Quant', 'Other']
+    for section in sections:
+        if section in tracking_tables:
+            track_data = tracking_tables[section]
+            track_headers = track_data[0]
+            if 'Status' in track_headers and 'Posting' in track_headers:
+                track_posting_idx = track_headers.index('Posting')
+                for row in track_data[2:]:
+                    if len(row) == len(track_headers):
+                        posting_url = get_url(row[track_posting_idx])
+                        status = row[-1].strip()  # e.g., '- [ ]' or '- [x]'
+                        tracking_map[posting_url] = status
 
 output_md = '# 2025 SWE College Jobs - My Tracking\n\n'
 output_md += 'This file is automatically updated daily from README.md, preserving your application statuses. Check off applied jobs by clicking the checkboxes in a Markdown editor like VS Code with the "Markdown Interactive Checkbox" extension.\n\n'
@@ -64,21 +108,21 @@ for section in sections_order:
     output_md += f'### {section}\n\n'
     source_rows = source_sections[section]
     company_idx = source_headers.index('Company') if 'Company' in source_headers else 0
-    role_idx = source_headers.index('Role') if 'Role' in source_headers else 1
+    position_idx = source_headers.index('Position') if 'Position' in source_headers else 1
     location_idx = source_headers.index('Location') if 'Location' in source_headers else 2
-    posting_idx = source_headers.index('Posting') if 'Posting' in source_headers else 3
+    posting_idx = source_headers.index('Posting') if 'Posting' in source_headers else 4  # Skips Salary
     for row in source_rows:
-        if len(row) < 4:
+        if len(row) < 5:  # Accounts for extra columns
             continue
         company = row[company_idx]
-        role = row[role_idx]
+        position = row[position_idx]
         location = row[location_idx]
         posting = row[posting_idx]
         url = get_url(posting)
         if not url:
             continue
-        status = tracking_map.get(url, '- [ ] ')
-        line = f'{status}{company} | {role} | {location} | {posting}\n'
+        status = tracking_map.get(url, '- [ ]')
+        line = f'{status} {company} | {position} | {location} | {posting}\n'
         output_md += line
     output_md += '\n'
 
