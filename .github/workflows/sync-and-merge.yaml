@@ -14,6 +14,8 @@ jobs:
         run: gh repo sync ${{ github.repository }} --branch ${{ github.ref_name }} --source speedyapply/2025-SWE-College-Jobs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull updates locally
+        run: git pull origin ${{ github.ref_name }}
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
