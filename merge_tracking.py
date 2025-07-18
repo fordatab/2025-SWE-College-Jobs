@@ -35,7 +35,7 @@ def generate_md_table(headers, rows):
     return md
 
 def get_url(cell):
-    match = re.search(r'\[\]\((https?://.*?)\)', cell)
+    match = re.search(r'\[.*?\]\((https?://[^)]*)\)', cell)
     return match.group(1) if match else ''
 
 with open('README.md', 'r', encoding='utf-8') as f:
